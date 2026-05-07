@@ -15,27 +15,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = useCallback(async () => {
     try {
       const response = await api.get("/auth/me");
-      
       if (response.data.success && response.data.data) {
         setUser(response.data.data);
       } else {
         setUser(null);
-        if (window.location.pathname !== '/login') {
-          navigate('/login');
-        }
       }
-    } catch (error: any) {
-      console.error('Auth check error:', error);
+    } catch {
+      // Session probe failure is not an error — the user is just not logged in.
+      // ProtectedRoute handles redirecting away from protected pages; public
+      // pages (Home, Listings, ListingDetails) render fine with user=null.
       setUser(null);
-      
-      // Don't try to refresh here, let axios interceptor handle it
-      if (window.location.pathname !== '/login') {
-        navigate('/login');
-      }
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
