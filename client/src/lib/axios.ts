@@ -65,33 +65,18 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
-      // Try to refresh the token
       const response = await api.post('/auth/refresh');
-      
-      if (response.data.success) {
-        // Process any queued requests
+      if (response.data?.success) {
         processQueue(null, response.data.token);
-        
-        // Retry the original request
         return api(originalRequest);
-      } else {
-        // If refresh fails, process queue with error
-        processQueue(new Error('Refresh failed'));
-        
-        // Redirect to login if not already there
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
       }
+      // Refresh returned a non-success body — propagate. ProtectedRoute / AuthContext
+      // handle session-absent navigation via React Router; we don't force window.location
+      // here because that would bounce visitors off public pages (Home, Listings, etc.)
+      processQueue(new Error('Refresh failed'));
+      return Promise.reject(error);
     } catch (refreshError) {
-      // Process any queued requests with error
       processQueue(refreshError);
-      
-      // If refresh fails, redirect to login
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
       return Promise.reject(refreshError);
     } finally {
       isRefreshing = false;

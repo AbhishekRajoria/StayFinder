@@ -63,14 +63,16 @@ axiosInstance.interceptors.response.use(
       try {
         const { data } = await axiosInstance.post('/auth/refresh');
         const { token } = data;
-        localStorage.setItem('token', token);
-        axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        if (token) {
+          localStorage.setItem('token', token);
+          axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
         processQueue(null, token);
         return axiosInstance(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('token');
-        window.location.href = '/login';
+        // No force-redirect — ProtectedRoute handles unauthenticated nav via React Router
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
