@@ -32,15 +32,16 @@ export const env = {
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET!,
   JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "30d",
   
-  // Client
-  CLIENT_URL: process.env.NODE_ENV === 'production'
-    ? 'https://stayfinder-eta.vercel.app'
-    : 'http://localhost:5173',
-  
+  // Client — env-driven so we can deploy to any backend host without code change
+  CLIENT_URL: process.env.CLIENT_URL ||
+    (process.env.NODE_ENV === 'production'
+      ? 'https://stayfinder-eta.vercel.app'
+      : 'http://localhost:5173'),
+
   // Cookie
   COOKIE_SECRET: process.env.COOKIE_SECRET!,
   COOKIE_EXPIRES_IN: parseInt(process.env.COOKIE_EXPIRES_IN || "7", 10),
-  COOKIE_DOMAIN: process.env.NODE_ENV === 'production'
-    ? '.onrender.com'
-    : undefined,
-} as const; 
+  // No domain set — cookie is scoped to the API host. Cross-site delivery to
+  // the FE relies on SameSite=None + Secure + CORS credentials.
+  COOKIE_DOMAIN: undefined as string | undefined,
+} as const;
