@@ -14,6 +14,26 @@ A full-stack property booking platform — auth, hostable listings with image up
 
 The visual identity is the point. Most clones reach for shadcn defaults and call it done. This one was rebuilt around a warm editorial aesthetic — Fraunces display serif, terracotta-on-cream palette, sharp 2px corners, slow magazine-grade motion — to look like the kind of project a freelance hospitality, lifestyle, or real-estate client would want their landing page to feel like.
 
+## Showcase
+
+### Home — full-bleed editorial hero, marquee ticker, featured stays
+![Home hero](./Screenshots/01-home-hero.png)
+
+### Listings — sticky filter bar, pill chips, cardless grid
+![Listings](./Screenshots/03-listings.png)
+
+### Listing detail — image collage, sticky booking widget, host card
+![Listing detail](./Screenshots/04-listing-detail.png)
+
+### Login — split-screen with full-height Ken Burns imagery
+![Login](./Screenshots/05-login.png)
+
+### Bookings — text-link tabs, editorial rows
+![Bookings](./Screenshots/07-bookings.png)
+
+### Create listing — numbered editorial sections, underline inputs, amenity pills
+![Create listing](./Screenshots/09-create-listing.png)
+
 ## Highlights
 
 - **Hand-crafted editorial design system** — not "shadcn defaults plus a logo." Custom token system, fluid type scale, three-primitive motion language, ten editorial components built on top of shadcn primitives.
