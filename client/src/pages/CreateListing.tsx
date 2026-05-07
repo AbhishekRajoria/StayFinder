@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { toast } from "sonner";
+import { X, Upload, Loader2 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,26 +24,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { toast } from "sonner";
-import { listingsAPI } from "@/services/api";
-import { X, Upload } from "lucide-react";
+import { createListing as createListingApi } from "@/api/listingApi";
+import { ScrollReveal } from "@/components/editorial";
 
 const formSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().min(1, "Description is required"),
-  location: z.string().min(1, "Location is required"),
-  price: z.number().min(0, "Price must be greater than 0"),
+  title: z.string().min(1, "Tell us what to call this stay."),
+  description: z.string().min(1, "Describe what makes it special."),
+  location: z.string().min(1, "Where is it?"),
+  price: z.number().min(0, "Price must be a positive number."),
   propertyType: z.enum(["house", "apartment", "villa", "condo", "studio"]),
-  guests: z.number().min(1, "Must accommodate at least 1 guest"),
-  bedrooms: z.number().min(1, "Must have at least 1 bedroom"),
-  bathrooms: z.number().min(1, "Must have at least 1 bathroom"),
+  guests: z.number().min(1, "At least one guest."),
+  bedrooms: z.number().min(1, "At least one bedroom."),
+  bathrooms: z.number().min(1, "At least one bathroom."),
   amenities: z.array(z.string()),
 });
 
 type FormData = z.infer<typeof formSchema>;
 
-const propertyTypes = [
+const PROPERTY_TYPES = [
   { value: "house", label: "House" },
   { value: "apartment", label: "Apartment" },
   { value: "villa", label: "Villa" },
@@ -48,17 +49,19 @@ const propertyTypes = [
   { value: "studio", label: "Studio" },
 ];
 
-const amenities = [
-  { value: "wifi", label: "WiFi" },
+const AMENITIES = [
+  { value: "wifi", label: "Wi-Fi" },
   { value: "pool", label: "Pool" },
   { value: "kitchen", label: "Kitchen" },
   { value: "parking", label: "Parking" },
-  { value: "air-conditioning", label: "Air Conditioning" },
+  { value: "ac", label: "Air conditioning" },
   { value: "washer", label: "Washer" },
   { value: "dryer", label: "Dryer" },
-  { value: "tv", label: "TV" },
+  { value: "tv", label: "Television" },
   { value: "gym", label: "Gym" },
   { value: "elevator", label: "Elevator" },
+  { value: "fireplace", label: "Fireplace" },
+  { value: "garden", label: "Garden" },
 ];
 
 export function CreateListing() {
@@ -70,10 +73,10 @@ export function CreateListing() {
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-    title: "",
-    description: "",
+      title: "",
+      description: "",
       location: "",
-    price: 0,
+      price: 0,
       propertyType: "house",
       guests: 1,
       bedrooms: 1,
@@ -85,326 +88,302 @@ export function CreateListing() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files?.length) return;
-
-    // Validate file types and sizes
-    const validFiles = Array.from(files).filter(file => {
-      const isValidType = file.type.startsWith('image/');
-      const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB
-      return isValidType && isValidSize;
-    });
-
-    if (validFiles.length !== files.length) {
-      toast.error("Some files were invalid. Only images up to 5MB are allowed.");
-    }
-
-    setSelectedFiles(prev => [...prev, ...validFiles]);
-
-    // Create preview URLs
-    validFiles.forEach(file => {
+    const valid = Array.from(files).filter((f) => f.type.startsWith("image/") && f.size <= 5 * 1024 * 1024);
+    if (valid.length !== files.length) toast.error("Skipped some files — images up to 5MB only.");
+    setSelectedFiles((prev) => [...prev, ...valid]);
+    valid.forEach((file) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrls(prev => [...prev, reader.result as string]);
-      };
+      reader.onloadend = () => setPreviewUrls((prev) => [...prev, reader.result as string]);
       reader.readAsDataURL(file);
     });
   };
 
   const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviewUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (data: FormData) => {
     if (selectedFiles.length === 0) {
-      toast.error("Please upload at least one image");
+      toast.error("Add at least one photograph.");
       return;
     }
-
     try {
       setLoading(true);
       const formData = new FormData();
-
-      // Append all form fields
       Object.entries(data).forEach(([key, value]) => {
-        if (key === 'amenities') {
-          // Append each amenity individually
-          (value as string[]).forEach(amenity => {
-            formData.append('amenities[]', amenity);
-          });
+        if (key === "amenities") {
+          (value as string[]).forEach((a) => formData.append("amenities[]", a));
         } else {
           formData.append(key, value.toString());
         }
       });
-
-      // Append all files
-      selectedFiles.forEach(file => {
-        formData.append('images', file);
-      });
-
-      
-
-      
-      await listingsAPI.createListing(formData);
-      toast.success("Listing created successfully");
+      selectedFiles.forEach((file) => formData.append("images", file));
+      await createListingApi(formData);
+      toast.success("Listing published.");
       navigate("/my-listings");
     } catch (error) {
-      console.error("Error creating listing:", error);
-      toast.error("Failed to create listing");
+      console.error(error);
+      toast.error("We couldn't publish that. Try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Listing</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                  name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter listing title" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+    <div className="bg-cream min-h-screen">
+      <ScrollReveal className="container-page pt-12 md:pt-20 pb-10">
+        <p className="eyebrow text-ink2 mb-4">Hosting</p>
+        <h1 className="font-display text-display text-ink leading-tight">
+          List your home.
+        </h1>
+        <p className="text-ink2 text-sm mt-3 max-w-md leading-relaxed">
+          Tell us what's distinctive. Honest details and a few good photographs go further
+          than polish.
+        </p>
+      </ScrollReveal>
 
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <FormSection eyebrow="01" title="The basics">
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="eyebrow text-ink2">Listing name</FormLabel>
+                  <FormControl>
+                    <Input variant="underline" placeholder="A cliffside villa with a private cove" {...field} />
+                  </FormControl>
+                  <FormMessage className="text-xs text-danger" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="eyebrow text-ink2">Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="What does it feel like to wake up there?"
+                      className="min-h-[140px] bg-transparent border-0 border-b border-linen rounded-none focus-visible:ring-0 focus-visible:border-ink px-0 text-ink placeholder:text-ink3 transition-colors"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-xs text-danger" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="location"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="eyebrow text-ink2">Location</FormLabel>
+                  <FormControl>
+                    <Input variant="underline" placeholder="Tulum, Mexico" {...field} />
+                  </FormControl>
+                  <FormMessage className="text-xs text-danger" />
+                </FormItem>
+              )}
+            />
+          </FormSection>
+
+          <FormSection eyebrow="02" title="Pricing & type">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
               <FormField
                 control={form.control}
-                name="description"
+                name="price"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel className="eyebrow text-ink2">Price per night ($)</FormLabel>
                     <FormControl>
-                      <Textarea
-                placeholder="Describe your property"
-                        className="min-h-[100px]"
+                      <Input
+                        variant="underline"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="220"
                         {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     </FormControl>
-                    <FormMessage />
+                    <FormMessage className="text-xs text-danger" />
                   </FormItem>
                 )}
               />
 
               <FormField
                 control={form.control}
-                name="location"
+                name="propertyType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter property location" {...field} />
-                    </FormControl>
-                    <FormMessage />
+                    <FormLabel className="eyebrow text-ink2">Property type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger className="border-0 border-b border-linen rounded-none px-0 focus:ring-0 bg-transparent">
+                          <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="bg-cream border-linen">
+                        {PROPERTY_TYPES.map((t) => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage className="text-xs text-danger" />
                   </FormItem>
                 )}
               />
+            </div>
+          </FormSection>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormSection eyebrow="03" title="Capacity">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+              {(["guests", "bedrooms", "bathrooms"] as const).map((name) => (
                 <FormField
+                  key={name}
                   control={form.control}
-                  name="price"
+                  name={name}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Price per Night ($)</FormLabel>
-                      <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                          step="0.01"
-                          placeholder="Enter price"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="propertyType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Property Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select property type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {propertyTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="guests"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Guests</FormLabel>
+                      <FormLabel className="eyebrow text-ink2">{name.charAt(0).toUpperCase() + name.slice(1)}</FormLabel>
                       <FormControl>
                         <Input
+                          variant="underline"
                           type="number"
                           min="1"
-                          placeholder="Number of guests"
+                          placeholder="1"
                           {...field}
                           onChange={(e) => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-xs text-danger" />
                     </FormItem>
                   )}
                 />
-
-                <FormField
-                  control={form.control}
-                  name="bedrooms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bedrooms</FormLabel>
-                      <FormControl>
-                  <Input
-                    type="number"
-                    min="1"
-                          placeholder="Number of bedrooms"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="bathrooms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Bathrooms</FormLabel>
-                      <FormControl>
-                <Input
-                          type="number"
-                          min="1"
-                          placeholder="Number of bathrooms"
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="amenities"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amenities</FormLabel>
-                    <FormControl>
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                        {amenities.map((amenity) => (
-                          <label
-                            key={amenity.value}
-                            className="flex items-center space-x-2"
-                          >
-                            <input
-                              type="checkbox"
-                              value={amenity.value}
-                              checked={field.value.includes(amenity.value)}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                const newValue = e.target.checked
-                                  ? [...field.value, value]
-                                  : field.value.filter((v) => v !== value);
-                                field.onChange(newValue);
-                              }}
-                              className="rounded border-gray-300"
-                            />
-                            <span>{amenity.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="space-y-4">
-                <FormLabel>Images</FormLabel>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {previewUrls.map((url, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={url}
-                        alt={`Preview ${index + 1}`}
-                        className="w-full h-48 object-cover rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-
-                  <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-gray-400 transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="w-8 h-8 mb-2 text-gray-500" />
-                      <p className="mb-2 text-sm text-gray-500">
-                        <span className="font-semibold">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
-                    </div>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileSelect}
-                    />
-                  </label>
-              </div>
+              ))}
             </div>
+          </FormSection>
 
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating..." : "Create Listing"}
+          <FormSection eyebrow="04" title="Amenities">
+            <FormField
+              control={form.control}
+              name="amenities"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <div className="flex flex-wrap gap-2">
+                      {AMENITIES.map((amenity) => {
+                        const active = field.value.includes(amenity.value);
+                        return (
+                          <button
+                            key={amenity.value}
+                            type="button"
+                            onClick={() => {
+                              field.onChange(
+                                active
+                                  ? field.value.filter((v) => v !== amenity.value)
+                                  : [...field.value, amenity.value],
+                              );
+                            }}
+                            className={`eyebrow rounded-full px-4 py-2 border transition-colors ${
+                              active
+                                ? "bg-ink text-cream border-ink"
+                                : "bg-transparent text-ink border-ink/15 hover:border-ink"
+                            }`}
+                          >
+                            {amenity.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormControl>
+                  <FormMessage className="text-xs text-danger" />
+                </FormItem>
+              )}
+            />
+          </FormSection>
+
+          <FormSection eyebrow="05" title="Photographs" hint="JPG or PNG, up to 5MB each. Five or more is ideal.">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {previewUrls.map((url, index) => (
+                <div key={index} className="relative group aspect-[4/5] rounded-sm overflow-hidden bg-bone">
+                  <img src={url} alt={`Preview ${index + 1}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeFile(index)}
+                    className="absolute top-2 right-2 h-8 w-8 rounded-full bg-cream/95 hover:bg-cream flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remove image"
+                  >
+                    <X className="h-3.5 w-3.5 text-ink" />
+                  </button>
+                </div>
+              ))}
+
+              <label className="flex flex-col items-center justify-center aspect-[4/5] border border-dashed border-ink/20 rounded-sm cursor-pointer hover:border-ink hover:bg-bone/50 transition-colors text-ink2 hover:text-ink">
+                <Upload className="h-6 w-6 mb-3" />
+                <span className="eyebrow text-ink">Add photo</span>
+                <span className="text-xs text-ink3 mt-1">or drop here</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                />
+              </label>
+            </div>
+          </FormSection>
+
+          <section className="container-page border-t border-linen py-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <p className="text-sm text-ink3 max-w-md">
+              We'll review your listing within a day. You can edit it any time after.
+            </p>
+            <Button type="submit" size="lg" disabled={loading} className="md:min-w-[200px]">
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Publishing…
+                </>
+              ) : (
+                "Publish listing"
+              )}
             </Button>
-          </form>
-          </Form>
-        </CardContent>
-      </Card>
+          </section>
+        </form>
+      </Form>
     </div>
   );
-} 
+}
+
+function FormSection({
+  eyebrow,
+  title,
+  hint,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="container-page border-t border-linen py-12 md:py-16">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-12">
+        <div className="md:col-span-3">
+          <p className="eyebrow text-ink2 mb-2">{eyebrow}</p>
+          <h2 className="font-display text-2xl text-ink leading-tight">{title}</h2>
+          {hint && <p className="text-xs text-ink3 mt-3 leading-relaxed">{hint}</p>}
+        </div>
+        <div className="md:col-span-9 space-y-8">{children}</div>
+      </div>
+    </section>
+  );
+}
+
+export default CreateListing;

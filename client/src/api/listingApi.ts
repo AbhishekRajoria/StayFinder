@@ -81,9 +81,11 @@ export const getMyListings = async (): Promise<ApiResponse<{ listings: Listing[]
   return response.data;
 };
 
-export const createListing = async (data: CreateListingData): Promise<ApiResponse<{ listing: Listing }>> => {
-
-  const response = await axios.post("/listings", data);
+export const createListing = async (data: CreateListingData | FormData): Promise<ApiResponse<{ listing: Listing }>> => {
+  const isFormData = data instanceof FormData;
+  const response = await axios.post("/listings", data, {
+    headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+  });
   return response.data;
 };
 

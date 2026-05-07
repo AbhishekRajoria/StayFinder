@@ -1,15 +1,27 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { format, isAfter, isBefore } from "date-fns";
+
 import { getMyBookings, cancelBooking } from "@/api/bookingApi";
 import { Booking } from "@/types/booking";
 import { PayNowButton } from "@/components/listing/PayNowButton";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { ScrollReveal } from "@/components/editorial";
+import { Skeleton } from "@/components/ui/skeleton";
+
+type Tab = "upcoming" | "past" | "cancelled";
+
+const TAB_COPY: Record<Tab, string> = {
+  upcoming: "Upcoming",
+  past: "Past",
+  cancelled: "Cancelled",
+};
 
 export default function Bookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>("upcoming");
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,6 +40,7 @@ export default function Bookings() {
     fetchBookings();
   }, []);
 
+  // Handle Stripe redirect query params
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const success = params.get("success");
@@ -36,13 +49,11 @@ export default function Bookings() {
 
     if (bookingId) {
       if (success === "true") {
-        toast.success("Payment successful! Your booking has been confirmed.");
+        toast.success("Payment successful. Your booking is confirmed.");
         fetchBookings();
       } else if (canceled === "true") {
-        toast.error("Payment was cancelled.");
+        toast.error("Payment cancelled.");
       }
-
-      // Clean URL
       params.delete("success");
       params.delete("canceled");
       params.delete("booking_id");
@@ -50,113 +61,210 @@ export default function Bookings() {
     }
   }, [location.search, navigate]);
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancel = async (bookingId: string) => {
     try {
       await cancelBooking(bookingId);
       setBookings((prev) =>
-        prev.map((booking) =>
-          booking._id === bookingId
-            ? { ...booking, status: "cancelled" }
-            : booking
-        )
+        prev.map((b) => (b._id === bookingId ? { ...b, status: "cancelled" } : b)),
       );
-      toast.success("Booking cancelled successfully");
-    } catch (error) {
-      toast.error("Failed to cancel booking");
+      toast.success("Booking cancelled.");
+    } catch {
+      toast.error("Couldn't cancel that booking.");
     }
   };
 
-  const getStatusClass = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return "bg-green-100 text-green-800";
-      case "cancelled":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-yellow-100 text-yellow-800";
-    }
-  };
+  const filtered = useMemo(() => {
+    const now = new Date();
+    return bookings.filter((b) => {
+      if (tab === "cancelled") return b.status === "cancelled";
+      const end = new Date(b.endDate);
+      const isPast = isBefore(end, now);
+      if (b.status === "cancelled") return false;
+      if (tab === "upcoming") return !isPast || isAfter(end, now);
+      return isPast;
+    });
+  }, [bookings, tab]);
 
-  const formatStatus = (status: string) =>
-    status.charAt(0).toUpperCase() + status.slice(1);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (bookings.length === 0) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Your Bookings</h1>
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground mb-4">No bookings found</p>
-            <Button asChild>
-              <Link to="/listings">Browse Listings</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const counts = useMemo(() => {
+    const now = new Date();
+    return {
+      upcoming: bookings.filter((b) => b.status !== "cancelled" && !isBefore(new Date(b.endDate), now)).length,
+      past: bookings.filter((b) => b.status !== "cancelled" && isBefore(new Date(b.endDate), now)).length,
+      cancelled: bookings.filter((b) => b.status === "cancelled").length,
+    };
+  }, [bookings]);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-8">Your Bookings</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {bookings.map((booking) => (
-          <div
-            key={booking._id}
-            className="bg-card rounded-lg shadow-sm p-6 border"
-          >
-            <h3 className="font-semibold mb-2">
-              {booking.listing?.title || "Untitled Listing"}
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              {new Date(booking.startDate).toLocaleDateString()} -{" "}
-              {new Date(booking.endDate).toLocaleDateString()}
-            </p>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm font-medium">${booking.totalPrice}</span>
-              <span
-                className={`text-sm px-2 py-1 rounded-full ${getStatusClass(
-                  booking.status
-                )}`}
+    <div className="bg-cream min-h-screen">
+      <section className="container-page pt-12 md:pt-20 pb-10">
+        <p className="eyebrow text-ink2 mb-4">Your travels</p>
+        <h1 className="font-display text-display text-ink">Bookings.</h1>
+      </section>
+
+      {/* Text-link tabs */}
+      <div className="border-b border-linen sticky top-16 md:top-20 z-30 bg-cream/95 backdrop-blur">
+        <div className="container-page flex gap-8 overflow-x-auto scrollbar-hide">
+          {(Object.keys(TAB_COPY) as Tab[]).map((t) => {
+            const active = tab === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`relative py-5 eyebrow transition-colors ${
+                  active ? "text-ink" : "text-ink3 hover:text-ink"
+                }`}
               >
-                {formatStatus(booking.status)}
-              </span>
-            </div>
-             
-            <div className="flex gap-10 items-center justify-between">
+                {TAB_COPY[t]}
+                <span className="text-ink3 ml-2">{counts[t]}</span>
+                {active && (
+                  <span className="absolute bottom-0 inset-x-0 h-px bg-ink" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-            {
-              booking.paymentStatus === "unpaid" && booking.status !== "cancelled" && (
-                <div>
-                  <PayNowButton
-                    bookingId={booking._id}
-                    totalPrice={booking.totalPrice}
-                  />
-                </div>
-              )}
-
-              {booking.status !== "cancelled" &&
-              <div>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleCancelBooking(booking._id)}
-                  size="sm"
-                >
-                  Cancel Booking
-                </Button>
-              </div>
-              }
-              </div>
+      <section className="container-page py-12 md:py-16">
+        {isLoading ? (
+          <div className="space-y-12">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <BookingRowSkeleton key={i} />
+            ))}
           </div>
-        ))}
+        ) : filtered.length === 0 ? (
+          <ScrollReveal>
+            <div className="max-w-md py-20">
+              <p className="eyebrow text-ink2 mb-4">Nothing here yet</p>
+              <p className="font-display text-3xl text-ink leading-tight">
+                Your stays will live here.
+              </p>
+              <p className="text-ink2 text-sm mt-4 max-w-sm leading-relaxed">
+                Once you book, every check-in, check-out, and good night's sleep
+                will appear in this feed.
+              </p>
+              <Button asChild className="mt-8">
+                <Link to="/listings">Browse stays</Link>
+              </Button>
+            </div>
+          </ScrollReveal>
+        ) : (
+          <div className="space-y-0">
+            {filtered.map((b) => (
+              <BookingRow
+                key={b._id}
+                booking={b}
+                onCancel={() => handleCancel(b._id)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function BookingRow({
+  booking,
+  onCancel,
+}: {
+  booking: Booking;
+  onCancel: () => void;
+}) {
+  const startD = new Date(booking.startDate);
+  const endD = new Date(booking.endDate);
+  const image = booking.listing?.images?.[0];
+
+  const statusColor =
+    booking.status === "confirmed"
+      ? "text-forest"
+      : booking.status === "cancelled"
+        ? "text-danger"
+        : "text-ochre";
+  const statusBg =
+    booking.status === "confirmed"
+      ? "bg-forest/10"
+      : booking.status === "cancelled"
+        ? "bg-danger/10"
+        : "bg-ochre/10";
+
+  return (
+    <ScrollReveal className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 py-8 md:py-10 border-b border-linen items-start md:items-center">
+      {/* Image */}
+      <div className="md:col-span-3">
+        <Link
+          to={`/listings/${booking.listing?._id}`}
+          className="block aspect-[4/3] overflow-hidden rounded-sm bg-bone group"
+        >
+          {image ? (
+            <img
+              src={image}
+              alt={booking.listing?.title}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-ink3 text-xs">No image</div>
+          )}
+        </Link>
+      </div>
+
+      {/* Details */}
+      <div className="md:col-span-6">
+        <p className="eyebrow text-ink2">{booking.listing?.location ?? "Location"}</p>
+        <Link
+          to={`/listings/${booking.listing?._id}`}
+          className="block font-display text-2xl text-ink mt-2 leading-snug hover:text-terracotta transition-colors"
+        >
+          {booking.listing?.title || "Untitled stay"}
+        </Link>
+        <p className="text-sm text-ink2 mt-3">
+          {format(startD, "MMM d")} → {format(endD, "MMM d, yyyy")} · {booking.nights} {booking.nights === 1 ? "night" : "nights"}
+        </p>
+      </div>
+
+      {/* Status + price + actions */}
+      <div className="md:col-span-3 flex flex-col items-start md:items-end gap-3">
+        <span
+          className={`eyebrow rounded-full px-3 py-1.5 ${statusBg} ${statusColor}`}
+        >
+          {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+        </span>
+        <p className="font-display text-2xl text-ink">${booking.totalPrice}</p>
+        <div className="flex flex-col items-start md:items-end gap-2">
+          {booking.paymentStatus === "unpaid" && booking.status !== "cancelled" && (
+            <PayNowButton
+              bookingId={booking._id}
+              totalPrice={booking.totalPrice}
+            />
+          )}
+          {booking.status !== "cancelled" && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="eyebrow text-ink3 hover:text-danger transition-colors"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
+      </div>
+    </ScrollReveal>
+  );
+}
+
+function BookingRowSkeleton() {
+  return (
+    <div className="grid grid-cols-12 gap-8 py-10 border-b border-linen animate-soft-pulse">
+      <Skeleton className="col-span-3 aspect-[4/3] bg-bone rounded-sm" />
+      <div className="col-span-6 space-y-3">
+        <Skeleton className="h-3 w-24 bg-bone" />
+        <Skeleton className="h-6 w-2/3 bg-bone" />
+        <Skeleton className="h-3 w-40 bg-bone" />
+      </div>
+      <div className="col-span-3 space-y-3 flex flex-col items-end">
+        <Skeleton className="h-5 w-20 bg-bone" />
+        <Skeleton className="h-7 w-16 bg-bone" />
       </div>
     </div>
   );

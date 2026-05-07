@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { SlidersHorizontal, X, MapPin, LayoutGrid } from "lucide-react";
+
+import { getListings } from "@/api/listingApi";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -10,11 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getListings } from "@/api/listingApi";
-import { Listing } from "@/types/listing";
-import { useToast } from "@/components/ui/use-toast";
-import { SlidersHorizontal, Clock, X } from "lucide-react";
-
 import {
   Sheet,
   SheetContent,
@@ -24,20 +23,15 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ListingCardEditorial,
+  ListingCardSkeleton,
+  ScrollReveal,
+} from "@/components/editorial";
 
 const AMENITIES = [
-  "wifi",
-  "parking",
-  "pool",
-  "garden",
-  "fireplace",
-  "kitchen",
-  "tv",
-  "ac",
-  "washer",
-  "dryer",
-  "elevator",
-  "gym",
+  "wifi", "parking", "pool", "garden", "fireplace", "kitchen",
+  "tv", "ac", "washer", "dryer", "elevator", "gym",
 ];
 
 const PROPERTY_TYPES = [
@@ -48,383 +42,442 @@ const PROPERTY_TYPES = [
   { value: "studio", label: "Studio" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "createdAt", label: "Newest" },
+  { value: "price", label: "Price" },
+  { value: "guests", label: "Capacity" },
+];
+
+type Filters = {
+  search: string;
+  location: string;
+  minPrice: string;
+  maxPrice: string;
+  minGuests: string;
+  maxGuests: string;
+  minBedrooms: string;
+  maxBedrooms: string;
+  minBathrooms: string;
+  maxBathrooms: string;
+  propertyType: string;
+  amenities: string[];
+  sort: string;
+  order: string;
+};
+
+const emptyFilters: Filters = {
+  search: "",
+  location: "",
+  minPrice: "",
+  maxPrice: "",
+  minGuests: "",
+  maxGuests: "",
+  minBedrooms: "",
+  maxBedrooms: "",
+  minBathrooms: "",
+  maxBathrooms: "",
+  propertyType: "",
+  amenities: [],
+  sort: "createdAt",
+  order: "desc",
+};
+
+function readFilters(params: URLSearchParams): Filters {
+  return {
+    search: params.get("search") ?? "",
+    location: params.get("location") ?? "",
+    minPrice: params.get("minPrice") ?? "",
+    maxPrice: params.get("maxPrice") ?? "",
+    minGuests: params.get("minGuests") ?? "",
+    maxGuests: params.get("maxGuests") ?? "",
+    minBedrooms: params.get("minBedrooms") ?? "",
+    maxBedrooms: params.get("maxBedrooms") ?? "",
+    minBathrooms: params.get("minBathrooms") ?? "",
+    maxBathrooms: params.get("maxBathrooms") ?? "",
+    propertyType: params.get("propertyType") ?? "",
+    amenities: params.getAll("amenities"),
+    sort: params.get("sort") ?? "createdAt",
+    order: params.get("order") ?? "desc",
+  };
+}
+
+function writeFilters(f: Filters): URLSearchParams {
+  const out = new URLSearchParams();
+  Object.entries(f).forEach(([k, v]) => {
+    if (Array.isArray(v)) {
+      v.forEach((x) => out.append(k, x));
+    } else if (v && !(k === "sort" && v === "createdAt") && !(k === "order" && v === "desc")) {
+      out.set(k, v as string);
+    }
+  });
+  return out;
+}
+
 export default function Listings() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { toast } = useToast();
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showWakeUpBanner, setShowWakeUpBanner] = useState(true);
-  const [filters, setFilters] = useState({
-    search: searchParams.get("search") || "",
-    location: searchParams.get("location") || "",
-    minPrice: searchParams.get("minPrice") || "",
-    maxPrice: searchParams.get("maxPrice") || "",
-    minGuests: searchParams.get("minGuests") || "",
-    maxGuests: searchParams.get("maxGuests") || "",
-    minBedrooms: searchParams.get("minBedrooms") || "",
-    maxBedrooms: searchParams.get("maxBedrooms") || "",
-    minBathrooms: searchParams.get("minBathrooms") || "",
-    maxBathrooms: searchParams.get("maxBathrooms") || "",
-    propertyType: searchParams.get("propertyType") || "",
-    amenities: searchParams.getAll("amenities") || [],
-    sort: searchParams.get("sort") || "createdAt",
-    order: searchParams.get("order") || "desc",
+  const [filters, setFilters] = useState<Filters>(() => readFilters(searchParams));
+  const [view, setView] = useState<"grid" | "map">("grid");
+
+  // Debounce text inputs so we don't slam the API
+  const debouncedSearch = useDebouncedValue(filters.search, 350);
+  const debouncedLocation = useDebouncedValue(filters.location, 350);
+
+  // URL sync
+  useEffect(() => {
+    setSearchParams(writeFilters(filters), { replace: true });
+  }, [filters, setSearchParams]);
+
+  const queryParams = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      location: debouncedLocation || undefined,
+      minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
+      maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
+      minGuests: filters.minGuests ? Number(filters.minGuests) : undefined,
+      maxGuests: filters.maxGuests ? Number(filters.maxGuests) : undefined,
+      minBedrooms: filters.minBedrooms ? Number(filters.minBedrooms) : undefined,
+      maxBedrooms: filters.maxBedrooms ? Number(filters.maxBedrooms) : undefined,
+      minBathrooms: filters.minBathrooms ? Number(filters.minBathrooms) : undefined,
+      maxBathrooms: filters.maxBathrooms ? Number(filters.maxBathrooms) : undefined,
+      propertyType: filters.propertyType || undefined,
+      amenities: filters.amenities.length ? filters.amenities : undefined,
+      sort: filters.sort || undefined,
+      order: filters.order as "asc" | "desc" | undefined,
+    }),
+    [debouncedSearch, debouncedLocation, filters],
+  );
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["listings", "search", queryParams],
+    queryFn: () => getListings(queryParams),
+    staleTime: 1000 * 60,
   });
 
-  useEffect(() => {
-    const fetchListings = async () => {
-      try {
-        const params = {
-          search: filters.search || undefined,
-          location: filters.location || undefined,
-          minPrice: filters.minPrice ? Number(filters.minPrice) : undefined,
-          maxPrice: filters.maxPrice ? Number(filters.maxPrice) : undefined,
-          minGuests: filters.minGuests ? Number(filters.minGuests) : undefined,
-          maxGuests: filters.maxGuests ? Number(filters.maxGuests) : undefined,
-          minBedrooms: filters.minBedrooms ? Number(filters.minBedrooms) : undefined,
-          maxBedrooms: filters.maxBedrooms ? Number(filters.maxBedrooms) : undefined,
-          minBathrooms: filters.minBathrooms ? Number(filters.minBathrooms) : undefined,
-          maxBathrooms: filters.maxBathrooms ? Number(filters.maxBathrooms) : undefined,
-          propertyType: filters.propertyType || undefined,
-          amenities: filters.amenities.length > 0 ? filters.amenities : undefined,
-          sort: filters.sort || undefined,
-          order: filters.order as "asc" | "desc" | undefined,
-        };
+  const listings = data?.data?.listings ?? [];
+  const total = data?.data?.pagination?.total ?? 0;
 
-        const response = await getListings(params);
-        setListings(response.data.listings);
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to fetch listings",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  const update = <K extends keyof Filters>(key: K, value: Filters[K]) =>
+    setFilters((f) => ({ ...f, [key]: value }));
 
-    fetchListings();
-  }, [filters, toast]);
+  const clearFilters = () => setFilters(emptyFilters);
 
-  const handleFilterChange = (
-    key: keyof typeof filters,
-    value: string | string[]
-  ) => {
-    const newFilters = { ...filters, [key]: value };
-    setFilters(newFilters);
-    
-    // Update URL params
-    const params = new URLSearchParams();
-    Object.entries(newFilters).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        value.forEach(v => params.append(key, v));
-      } else if (value) {
-        params.set(key, value);
-      }
-    });
-    setSearchParams(params);
-  };
+  const activeCount = Object.entries(filters).reduce((n, [k, v]) => {
+    if (k === "sort" || k === "order") return n;
+    if (Array.isArray(v)) return n + (v.length > 0 ? 1 : 0);
+    return n + (v ? 1 : 0);
+  }, 0);
 
-  const clearFilters = () => {
-    const emptyFilters = {
-      search: "",
-      location: "",
-      minPrice: "",
-      maxPrice: "",
-      minGuests: "",
-      maxGuests: "",
-      minBedrooms: "",
-      maxBedrooms: "",
-      minBathrooms: "",
-      maxBathrooms: "",
-      propertyType: "",
-      amenities: [],
-      sort: "createdAt",
-      order: "desc",
-    };
-    setFilters(emptyFilters);
-    setSearchParams({});
-  };
+  const togglePropertyType = (val: string) =>
+    update("propertyType", filters.propertyType === val ? "" : val);
 
-  const activeFiltersCount = Object.values(filters).filter(
-    (value) => (Array.isArray(value) ? value.length > 0 : value)
-  ).length;
-
-    return (
-      <div className="container mx-auto px-4 py-8">
-      {/* Backend Wake-up Notification Banner */}
-      {showWakeUpBanner && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 relative">
-          <button
-            onClick={() => setShowWakeUpBanner(false)}
-            className="absolute top-2 right-2 text-blue-500 hover:text-blue-700"
-            aria-label="Close notification"
-          >
-            <X size={18} />
-          </button>
-          <div className="flex items-start space-x-3">
-            <Clock className="text-blue-500 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-semibold text-blue-800 mb-1">
-                Backend Initializing
-              </h3>
-              <p className="text-blue-700 text-sm">
-                Please note: The backend server may take 10-15 seconds to wake up from sleep state due to inactivity. 
-                If listings don't load immediately, please wait a moment and they'll appear shortly.
-              </p>
-            </div>
-          </div>
+  return (
+    <div className="bg-cream min-h-screen">
+      {/* PAGE HEADER */}
+      <section className="container-page pt-16 md:pt-24 pb-10">
+        <p className="eyebrow text-ink2 mb-4">The collection</p>
+        <div className="flex items-end justify-between gap-6 flex-wrap">
+          <h1 className="font-display text-display text-ink">All stays.</h1>
+          <p className="text-ink3 text-sm">
+            {isLoading ? "Searching…" : `${total} ${total === 1 ? "stay" : "stays"} available`}
+          </p>
         </div>
-      )}
+      </section>
 
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Search Listings</h1>
-          <div className="flex items-center gap-2">
-            {activeFiltersCount > 0 && (
-              <Button variant="outline" onClick={clearFilters}>
-                Clear Filters
+      {/* STICKY FILTER BAR */}
+      <div className="sticky top-16 md:top-20 z-30 bg-cream/90 backdrop-blur-md border-y border-linen">
+        <div className="container-page py-4 flex items-center gap-3 overflow-x-auto scrollbar-hide">
+          {/* Property type pills */}
+          <div className="flex gap-2 shrink-0">
+            {PROPERTY_TYPES.map((pt) => {
+              const active = filters.propertyType === pt.value;
+              return (
+                <button
+                  key={pt.value}
+                  type="button"
+                  onClick={() => togglePropertyType(pt.value)}
+                  className={`eyebrow rounded-full px-4 py-2 border transition-colors ${
+                    active
+                      ? "bg-ink text-cream border-ink"
+                      : "bg-transparent text-ink border-ink/15 hover:border-ink"
+                  }`}
+                >
+                  {pt.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <span className="hidden md:block w-px h-6 bg-linen mx-2" />
+
+          {/* Search input — underline */}
+          <div className="hidden md:flex items-center gap-3 flex-1 min-w-[200px] max-w-md">
+            <Input
+              variant="underline"
+              placeholder="Search by name, place, vibe"
+              value={filters.search}
+              onChange={(e) => update("search", e.target.value)}
+            />
+          </div>
+
+          {/* Sort */}
+          <div className="hidden md:block shrink-0">
+            <Select value={filters.sort} onValueChange={(v) => update("sort", v)}>
+              <SelectTrigger className="w-36 border-0 border-b border-linen rounded-none focus:ring-0 bg-transparent">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="ml-auto flex gap-2 shrink-0">
+            {activeCount > 0 && (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5">
+                <X className="h-3.5 w-3.5" /> Clear
               </Button>
             )}
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" className="gap-2">
-                  <SlidersHorizontal className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="gap-2">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
                   Filters
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-2">
-                      {activeFiltersCount}
+                  {activeCount > 0 && (
+                    <Badge className="ml-1 bg-terracotta text-cream hover:bg-terracotta">
+                      {activeCount}
                     </Badge>
                   )}
                 </Button>
               </SheetTrigger>
-              <SheetContent>
+              <SheetContent className="bg-cream border-linen w-full sm:max-w-md">
                 <SheetHeader>
-                  <SheetTitle>Filters</SheetTitle>
+                  <SheetTitle className="font-display text-2xl text-ink">Refine</SheetTitle>
                 </SheetHeader>
-                <ScrollArea className="h-[calc(100vh-8rem)] pr-4">
-                  <div className="space-y-6 py-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Search</label>
+                <ScrollArea className="h-[calc(100vh-8rem)] pr-4 mt-6">
+                  <div className="space-y-8 py-2">
+                    <FieldGroup label="Location">
                       <Input
-                        placeholder="Search by title, description, or location"
-                        value={filters.search}
-                        onChange={(e) => handleFilterChange("search", e.target.value)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Location</label>
-                      <Input
-                        placeholder="Enter location"
+                        variant="underline"
+                        placeholder="Where to?"
                         value={filters.location}
-                        onChange={(e) => handleFilterChange("location", e.target.value)}
+                        onChange={(e) => update("location", e.target.value)}
                       />
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Price Range</label>
-                      <div className="flex gap-2">
+                    <FieldGroup label="Price ($/night)">
+                      <div className="grid grid-cols-2 gap-4">
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Min price"
+                          placeholder="Min"
                           value={filters.minPrice}
-                          onChange={(e) => handleFilterChange("minPrice", e.target.value)}
+                          onChange={(e) => update("minPrice", e.target.value)}
                         />
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Max price"
+                          placeholder="Max"
                           value={filters.maxPrice}
-                          onChange={(e) => handleFilterChange("maxPrice", e.target.value)}
+                          onChange={(e) => update("maxPrice", e.target.value)}
                         />
                       </div>
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Guests</label>
-                      <div className="flex gap-2">
+                    <FieldGroup label="Guests">
+                      <div className="grid grid-cols-2 gap-4">
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Min guests"
+                          placeholder="Min"
                           value={filters.minGuests}
-                          onChange={(e) => handleFilterChange("minGuests", e.target.value)}
+                          onChange={(e) => update("minGuests", e.target.value)}
                         />
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Max guests"
+                          placeholder="Max"
                           value={filters.maxGuests}
-                          onChange={(e) => handleFilterChange("maxGuests", e.target.value)}
+                          onChange={(e) => update("maxGuests", e.target.value)}
                         />
                       </div>
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Bedrooms</label>
-                      <div className="flex gap-2">
+                    <FieldGroup label="Bedrooms">
+                      <div className="grid grid-cols-2 gap-4">
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Min bedrooms"
+                          placeholder="Min"
                           value={filters.minBedrooms}
-                          onChange={(e) => handleFilterChange("minBedrooms", e.target.value)}
+                          onChange={(e) => update("minBedrooms", e.target.value)}
                         />
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Max bedrooms"
+                          placeholder="Max"
                           value={filters.maxBedrooms}
-                          onChange={(e) => handleFilterChange("maxBedrooms", e.target.value)}
+                          onChange={(e) => update("maxBedrooms", e.target.value)}
                         />
                       </div>
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Bathrooms</label>
-                      <div className="flex gap-2">
+                    <FieldGroup label="Bathrooms">
+                      <div className="grid grid-cols-2 gap-4">
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Min bathrooms"
+                          placeholder="Min"
                           value={filters.minBathrooms}
-                          onChange={(e) => handleFilterChange("minBathrooms", e.target.value)}
+                          onChange={(e) => update("minBathrooms", e.target.value)}
                         />
                         <Input
+                          variant="underline"
                           type="number"
-                          placeholder="Max bathrooms"
+                          placeholder="Max"
                           value={filters.maxBathrooms}
-                          onChange={(e) => handleFilterChange("maxBathrooms", e.target.value)}
+                          onChange={(e) => update("maxBathrooms", e.target.value)}
                         />
                       </div>
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Property Type</label>
-                      <Select
-                        value={filters.propertyType}
-                        onValueChange={(value) => handleFilterChange("propertyType", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select property type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PROPERTY_TYPES.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Amenities</label>
+                    <FieldGroup label="Amenities">
                       <div className="flex flex-wrap gap-2">
-                        {AMENITIES.map((amenity) => (
-                          <Badge
-                            key={amenity}
-                            variant={filters.amenities.includes(amenity) ? "default" : "outline"}
-                            className="cursor-pointer"
-                            onClick={() => {
-                              const newAmenities = filters.amenities.includes(amenity)
-                                ? filters.amenities.filter((a) => a !== amenity)
-                                : [...filters.amenities, amenity];
-                              handleFilterChange("amenities", newAmenities);
-                            }}
-                          >
-                            {amenity}
-                          </Badge>
-                        ))}
+                        {AMENITIES.map((amenity) => {
+                          const active = filters.amenities.includes(amenity);
+                          return (
+                            <button
+                              key={amenity}
+                              type="button"
+                              onClick={() => {
+                                update(
+                                  "amenities",
+                                  active
+                                    ? filters.amenities.filter((a) => a !== amenity)
+                                    : [...filters.amenities, amenity],
+                                );
+                              }}
+                              className={`eyebrow rounded-full px-3 py-1.5 border transition-colors ${
+                                active
+                                  ? "bg-ink text-cream border-ink"
+                                  : "bg-transparent text-ink border-ink/15 hover:border-ink"
+                              }`}
+                            >
+                              {amenity}
+                            </button>
+                          );
+                        })}
                       </div>
-                    </div>
+                    </FieldGroup>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Sort By</label>
-                      <Select
-                        value={filters.sort}
-                        onValueChange={(value) => handleFilterChange("sort", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sort by" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="price">Price</SelectItem>
-                          <SelectItem value="createdAt">Newest</SelectItem>
-                          <SelectItem value="guests">Guests</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Order</label>
-                      <Select
-                        value={filters.order}
-                        onValueChange={(value) => handleFilterChange("order", value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Order" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="asc">Ascending</SelectItem>
-                          <SelectItem value="desc">Descending</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <FieldGroup label="Sort by">
+                      <div className="grid grid-cols-2 gap-4">
+                        <Select value={filters.sort} onValueChange={(v) => update("sort", v)}>
+                          <SelectTrigger className="border-0 border-b border-linen rounded-none focus:ring-0 bg-transparent px-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SORT_OPTIONS.map((s) => (
+                              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={filters.order} onValueChange={(v) => update("order", v)}>
+                          <SelectTrigger className="border-0 border-b border-linen rounded-none focus:ring-0 bg-transparent px-0">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asc">Low to high</SelectItem>
+                            <SelectItem value="desc">High to low</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </FieldGroup>
                   </div>
                 </ScrollArea>
               </SheetContent>
             </Sheet>
+
+            {/* Map / grid toggle */}
+            <div className="hidden md:flex border border-ink/15 rounded-full overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setView("grid")}
+                className={`eyebrow px-3 py-2 flex items-center gap-1.5 transition-colors ${
+                  view === "grid" ? "bg-ink text-cream" : "bg-transparent text-ink hover:bg-linen"
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" /> Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("map")}
+                className={`eyebrow px-3 py-2 flex items-center gap-1.5 transition-colors ${
+                  view === "map" ? "bg-ink text-cream" : "bg-transparent text-ink hover:bg-linen"
+                }`}
+              >
+                <MapPin className="h-3.5 w-3.5" /> Map
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="flex gap-2">
-          <Input
-            placeholder="Search by title, description, or location"
-            value={filters.search}
-            onChange={(e) => handleFilterChange("search", e.target.value)}
-            className="max-w-md"
-          />
-          <Input
-            placeholder="Location"
-            value={filters.location}
-            onChange={(e) => handleFilterChange("location", e.target.value)}
-            className="max-w-md"
-          />
-        </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      ) : listings.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-600">No listings found matching your criteria.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {listings.map((listing) => (
-          <Card key={listing._id} className="overflow-hidden">
-              <div className="aspect-video relative">
-              <img
-                src={listing.images[0]}
-                alt={listing.title}
-                  className="object-cover w-full h-full"
-              />
+      {/* RESULTS */}
+      <section className="container-page py-12 md:py-20">
+        {view === "map" ? (
+          <div className="aspect-[16/10] rounded-sm bg-bone flex items-center justify-center text-ink2">
+            <div className="text-center max-w-sm">
+              <p className="eyebrow text-ink2 mb-3">Map view</p>
+              <p className="font-display text-2xl text-ink">Arriving with the next wave.</p>
+              <p className="text-sm text-ink3 mt-3">
+                Pin-to-card sync with Leaflet ships in the next release.
+              </p>
             </div>
-            <CardHeader>
-                <CardTitle className="text-xl">{listing.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <p className="text-gray-600 mb-4">{listing.location}</p>
-                <div className="flex justify-between items-center">
-                  <p className="font-semibold">${listing.price}/night</p>
-                  <Button asChild>
-                    <Link to={`/listings/${listing._id}`}>View Details</Link>
-                  </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      )}
+          </div>
+        ) : isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-12">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ListingCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="text-center py-24">
+            <p className="eyebrow text-ink2 mb-4">No matches</p>
+            <p className="font-display text-2xl text-ink">
+              We couldn't find a stay for that.
+            </p>
+            <p className="text-ink3 text-sm mt-3 max-w-sm mx-auto">
+              Try widening your dates, dropping a filter, or browsing destinations.
+            </p>
+            <Button onClick={clearFilters} variant="editorial" className="mt-8">
+              Reset filters
+            </Button>
+          </div>
+        ) : (
+          <ScrollReveal>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14">
+              {listings.map((listing) => (
+                <ListingCardEditorial
+                  key={listing._id}
+                  listing={listing}
+                  eyebrow={`${listing.propertyType?.toUpperCase() ?? "STAY"} · ${listing.location?.split(",")[0] ?? ""}`}
+                />
+              ))}
+            </div>
+          </ScrollReveal>
+        )}
+      </section>
     </div>
   );
-} 
+}
+
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <p className="eyebrow text-ink">{label}</p>
+      {children}
+    </div>
+  );
+}

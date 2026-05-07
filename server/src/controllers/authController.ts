@@ -148,7 +148,6 @@ export const logout = async (
     sameSite: 'none',
     expires: new Date(0),
     path: '/',
-    domain: env.NODE_ENV === 'production' ? '.onrender.com' : undefined
   });
   return sendSuccess(res, {}, 'Logged out successfully');
 };

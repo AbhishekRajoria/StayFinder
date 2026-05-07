@@ -1,127 +1,162 @@
-
 # StayFinder
 
-A full-stack web application inspired by Airbnb. StayFinder allows users to list, search, and book properties for short-term or long-term stays. The project demonstrates end-to-end development skills across frontend, backend, and database layers.
+> A warm-editorial Airbnb-style marketplace. Built solo as a portfolio piece and a freelance landing-page demonstrator.
 
-*Live Demo:* [https://stayfinder-eta.vercel.app/](https://stayfinder-eta.vercel.app/)  
-*Portfolio:* [https://abhishek-rajoria.vercel.app/](https://abhishek-rajoria.vercel.app/)
----
-
-## � Features
-
-### User-Facing
-- **Homepage:** Browse property cards with images, location, and price.
-- **Property Details:** View images, descriptions, amenities, and availability calendar.
-- **Search & Filters:** Find listings by location, price, and date.
-- **Authentication:** Register and login with validation.
-- **Booking:** Reserve properties with a simple booking flow.
-- **Profile:** View and manage your bookings.
-
-### Host/Owner
-- **Host Dashboard:** Manage your own listings.
-- **Listing CRUD:** Create, edit, and delete property listings.
-
-### Backend/API
-- **RESTful Endpoints:** For listings, bookings, and authentication.
-- **Database Models:** Users, Listings, Bookings.
-
-### Bonus
-- **Mock Payment Integration:** (e.g., Stripe)
-- **Modern UI/UX:** Inspired by Airbnb, NomadX, and Dribbble designs.
+**Live demo** → [stayfinder-eta.vercel.app](https://stayfinder-eta.vercel.app/)
+**Portfolio** → [abhishek-rajoria.vercel.app](https://abhishek-rajoria.vercel.app/)
 
 ---
 
-## 🛠️ Tech Stack
+## What this is
 
-| Layer      | Technology                | Why?                                                                 |
-|------------|---------------------------|----------------------------------------------------------------------|
-| Frontend   | React + TypeScript, Vite  | Fast, type-safe, component-driven UI                                 |
-| Styling    | Tailwind CSS              | Utility-first, rapid styling                                         |
-| State      | Redux Toolkit             | Predictable, scalable state management                               |
-| Backend    | Node.js, Express          | Robust, widely-used for REST APIs                                    |
-| Database   | MongoDB (Mongoose)        | Flexible, JSON-like, easy to seed/test                               |
-| Auth       | JWT, bcrypt               | Secure, stateless authentication                                     |
-| Hosting    | Vercel (frontend), Render (backend) | Simple, scalable deployment                                 |
----
+A full-stack property booking platform — auth, hostable listings with image upload, search & filter, calendar-aware bookings with Stripe payments. Functionally Airbnb-shaped; visually a magazine.
 
-## 📦 Project Structure
+The visual identity is the point. Most clones reach for shadcn defaults and call it done. This one was rebuilt around a warm editorial aesthetic — Fraunces display serif, terracotta-on-cream palette, sharp 2px corners, slow magazine-grade motion — to look like the kind of project a freelance hospitality, lifestyle, or real-estate client would want their landing page to feel like.
+
+## Highlights
+
+- **Hand-crafted editorial design system** — not "shadcn defaults plus a logo." Custom token system, fluid type scale, three-primitive motion language, ten editorial components built on top of shadcn primitives.
+- **Listings → search → book → pay** end-to-end, with date-overlap detection, Cloudinary image hosting, and Stripe Checkout (test mode + webhooks).
+- **Role-based access** — guest by default, auto-promoted to host on first listing creation. Hosts get their own dashboards and reservation views.
+- **Slow, intentional motion** — scroll-revealed sections, marquee location ticker, image carousel inside cards, lightbox-with-keyboard for property photos. Respects `prefers-reduced-motion`.
+- **Hardened backend** — Helmet + compression + per-route rate limiting (auth: 20/15min, api: 300/15min). Webhook route registered before body parsers. JWT in HTTP-only cookies.
+
+## Stack
+
+| Layer       | Choice                                      | Why |
+|-------------|---------------------------------------------|-----|
+| Frontend    | React 18 + TypeScript + Vite                | Fast HMR, type-safe, zero magic |
+| Styling     | Tailwind CSS + shadcn/ui (Radix primitives) | Composable, accessible, themable |
+| State / Data| TanStack Query + AuthContext                 | Server-cache where it belongs; minimal global state |
+| Forms       | React Hook Form + Zod                       | Validated, controlled, ergonomic |
+| Animation   | framer-motion                                | Coherent motion primitives, reduced-motion aware |
+| Backend     | Node.js + Express + TypeScript              | Familiar, fast iteration |
+| Database    | MongoDB + Mongoose                          | JSON-shape models map cleanly to listings/bookings |
+| Auth        | JWT (cookies) + bcryptjs                    | Stateless, simple |
+| Uploads     | Multer + Cloudinary                         | CDN-backed image pipeline |
+| Payments    | Stripe Checkout + webhooks                  | PCI-out-of-scope, low integration cost |
+| Hosting     | Vercel (FE) · Railway/Fly (BE)              | Static FE on edge; always-on BE for booking flow |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Browser
+        U[User]
+    end
+    subgraph Vercel[Vercel · Frontend]
+        FE[React + Vite SPA]
+    end
+    subgraph Railway[Railway · Backend]
+        API[Express API]
+        WH[Stripe Webhook]
+    end
+    subgraph Mongo[MongoDB Atlas]
+        DB[(users · listings · bookings)]
+    end
+    subgraph Cloud[Third-party]
+        CL[Cloudinary]
+        STR[Stripe]
+    end
+
+    U -->|HTTPS| FE
+    FE -->|REST + cookies| API
+    API -->|Mongoose| DB
+    API -->|images| CL
+    API -->|Checkout session| STR
+    STR -->|webhook| WH
+    WH -->|payment status| DB
+```
+
+## Project structure
 
 ```
 StayFinder/
-  client/      # React frontend (Vite, Tailwind, Redux)
-  server/      # Node.js/Express backend (MongoDB, Mongoose)
+├── client/                       # React frontend
+│   └── src/
+│       ├── api/                  # Per-resource axios modules
+│       ├── components/
+│       │   ├── editorial/        # Custom design-system primitives
+│       │   ├── listing/          # BookingForm, EditListingModal, …
+│       │   ├── ui/               # shadcn/ui base (themed)
+│       │   ├── auth/             # AuthSplit shared layout
+│       │   └── layouts/          # RootLayout, Footer
+│       ├── hooks/                # useAuth, useDebouncedValue
+│       ├── pages/                # Route-level views
+│       └── styles/               # Font imports
+├── server/                       # Express + Mongoose API
+│   └── src/
+│       ├── routes/               # auth · listings · bookings · payments · webhooks
+│       ├── controllers/          # Business logic per resource
+│       ├── models/               # User · Listing · Booking
+│       └── middleware/           # auth · upload · errorHandler
+└── docs/superpowers/
+    ├── specs/                    # Design specs
+    └── plans/                    # Implementation plans
 ```
 
-- See `/client/README.md` and `/server/README.md` for more details.
+## Demo accounts
 
----
+```
+recruiter@stayfinder.dev  ·  demo123   (host  — has 3 listings + 2 bookings)
+guest@stayfinder.dev      ·  demo123   (guest — has 2 confirmed bookings)
+```
 
-## 🧠 Assignment Reflections
+> Stripe test card: `4242 4242 4242 4242` · any future date · any CVC · any ZIP.
 
-### Tech Stack Choice
+## Local setup
 
-- **React + TypeScript:** For type safety, scalability, and a modern developer experience.
-- **Node.js/Express:** Fast prototyping, large ecosystem, and easy integration with MongoDB.
-- **MongoDB:** Flexible schema, ideal for rapid development and prototyping.
+```bash
+# 1. Clone
+git clone https://github.com/Abhishek1334/StayFinder.git
+cd StayFinder
 
-### Full-Stack Comfort
+# 2. Frontend
+cd client
+npm install
+echo "VITE_API_URL=http://localhost:5000/api" > .env.local
+npm run dev   # → http://localhost:5173
 
-> Yes, I am comfortable building both frontend and backend if UI is provided. I enjoy working across the stack and can quickly adapt to new UI/UX requirements.
+# 3. Backend (in another terminal)
+cd ../server
+npm install
+cp .env.example .env   # fill in MONGODB_URI, JWT_SECRET, CLOUDINARY_*, STRIPE_*
+npm run dev   # → http://localhost:5000
+```
 
-### Unique Features to Improve Airbnb
+## Featured pages
 
-1. **Instant Messaging:** Real-time chat between guests and hosts for faster communication.
-2. **Dynamic Pricing Engine:** Suggest optimal prices to hosts based on demand, seasonality, and local events.
+- **Home** (`/`) — full-bleed hero with shapeshifting search pill, marquee location ticker, featured stays rail, editorial split, destinations grid, pull quote, stats strip, host CTA.
+- **Listings** (`/listings`) — sticky thin filter bar with property-type pill chips, debounced search, cardless 3-column grid, map-toggle stub.
+- **Listing details** (`/listings/:id`) — 1+4 image collage with keyboard-driven lightbox, sticky booking widget with date pickers + guest stepper + total breakdown, host card, amenities grid, reviews stub, location stub.
+- **Login / Register** — split-screen with full-height Ken Burns travel imagery on the right.
+- **Bookings** — text-link tabs (Upcoming / Past / Cancelled), editorial booking rows, magazine-style empty state.
+- **Dashboard** — "your atelier" reframe with role-aware stats strip and two-column row lists.
 
-### Security & Scalability
+## What I learned (lessons applied)
 
-- **Security:** JWT-based authentication, password hashing (bcrypt), input validation, and secure HTTP headers.
-- **Scaling:** Stateless backend (easy to scale horizontally), CDN for static assets, and cloud database (MongoDB Atlas) for high availability.
+- **Default UI libraries leak through.** shadcn is fantastic plumbing but you have to actively *override* its design language to escape the SaaS default look. The biggest single visual lift was deleting drop shadows, adopting 2px corners, and committing to Fraunces.
+- **Motion language > animation count.** Three primitives (lift-in, image curtain reveal, cursor tilt) used everywhere coheres better than ten different effects scattered across pages.
+- **Server-cache > global client state.** I started with Redux Toolkit + redux-persist for everything, and standardized on TanStack Query for server data + AuthContext for session. Less code, fewer sync bugs.
+- **Cold-start banners are credibility tax.** "Backend may take 10s to wake up" notices on a free-tier host signal junior. The right fix is to not have cold starts.
+- **Photography is the design.** A travel marketplace can never be more polished than its imagery. I curated 30+ Unsplash photos before designing a single component.
 
----
+## What's NOT in this build (deliberate scope freeze)
 
-## 📄 API Overview
+The project is frozen as of v2.0. The following were considered and explicitly cut:
 
-- **Auth:** `POST /api/auth/register`, `POST /api/auth/login`
-- **Listings:** `GET /api/listings`, `GET /api/listings/:id`, `POST /api/listings` (host), `PUT/PATCH/DELETE /api/listings/:id`
-- **Bookings:** `POST /api/bookings`, `GET /api/bookings` (user/host)
-- **Payments:** (Mock/Stripe integration)
+- Real review system backend (UI stub only)
+- Real-time host↔guest chat (would be 4 days of work for a feature recruiters never test)
+- AI-generated listing descriptions
+- i18n + currency switcher
+- Tests + CI (worth doing, not worth gating this milestone)
+- Multi-step listing creation wizard (single-page form retained for v2)
+- Real Google OAuth (placeholder button only)
 
-See [`API_DOCS.md`](./API_DOCS.md) for full documentation.
+The scope was capped because every additional week here is a week not spent on the next, more distinctive project.
 
--
+## Credits
 
-## 🎨 UI/UX Inspiration
-
-- Airbnb, NomadX, Dribbble, Figma community designs.
-
----
-
-## 🌍 Deployment
-
-- **Frontend:** [Vercel](https://vercel.com/)
-- **Backend:** [Render](https://render.com/)
-
----
-
-## �� Acknowledgements
-
-- [Airbnb](https://airbnb.com) for inspiration
-- [Dribbble](https://dribbble.com/) & [Figma](https://figma.com/) for UI ideas
-
----
-
-## 📫 Contact
-
-For questions or feedback, please open an issue or contact [your-email@example.com].
-
----
-
-**_Thank you for reviewing StayFinder!_**
-
----
-
-## 🔗 Portfolio
-
-Check out my portfolio at [https://abhishek-rajoria.vercel.app/](https://abhishek-rajoria.vercel.app/).
-
+- Design vocabulary informed by Plum Guide, Sonder, Aman, Faena, Habitas, Cereal magazine.
+- Photography sourced from [Unsplash](https://unsplash.com).
+- Built solo by [Abhishek Rajoria](https://abhishek-rajoria.vercel.app).
