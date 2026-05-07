@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useToast } from "@/components/ui/use-toast";
-import { getMyListings, deleteListing, Listing } from "@/api/listingApi";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { Loader2, MoreHorizontal, Plus, Eye, Pencil, Trash2 } from "lucide-react";
+
+import { useToast } from "@/components/ui/use-toast";
+import { getMyListings, deleteListing } from "@/api/listingApi";
+import type { Listing } from "@/types/listing";
+import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { EditListingModal } from "@/components/listing/EditListingModal";
+import { ScrollReveal, ListingCardSkeleton } from "@/components/editorial";
 
 export default function MyListings() {
   const { toast } = useToast();
@@ -30,21 +39,18 @@ export default function MyListings() {
     queryFn: getMyListings,
   });
 
-  const listings = data?.data?.listings || [];
+  const listings = (data?.data?.listings ?? []) as Listing[];
 
   const handleDelete = async (id: string) => {
     try {
       setIsDeleting(true);
       await deleteListing(id);
-      toast({
-        title: "Success",
-        description: "Listing deleted successfully",
-      });
+      toast({ title: "Listing removed", description: "It's gone from the collection." });
       refetch();
-    } catch (error) {
+    } catch {
       toast({
-        title: "Error",
-        description: "Failed to delete listing",
+        title: "Couldn't delete",
+        description: "Try again in a moment.",
         variant: "destructive",
       });
     } finally {
@@ -54,93 +60,144 @@ export default function MyListings() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Listings</h1>
-        <Button asChild>
-          <Link to="/listings/create">Create New Listing</Link>
-        </Button>
-      </div>
-
-      {!listings.length ? (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-gray-500">You haven't created any listings yet.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {listings.map((listing: Listing) => (
-            <Card key={listing._id} className="overflow-hidden">
-              <div className="aspect-video relative">
-                  <img
-                    src={listing.images[0]}
-                    alt={listing.title}
-                    className="object-cover w-full h-full"
-                  />
-              </div>
-              <CardHeader>
-                <CardTitle className="text-xl">{listing.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">{listing.location}</p>
-                <div className="flex justify-between items-center">
-                  <p className="font-semibold">${listing.price}/night</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setEditingListing(listing)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        setListingToDelete(listing);
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+    <div className="bg-cream min-h-screen">
+      <section className="container-page pt-12 md:pt-20 pb-12">
+        <div className="flex items-end justify-between gap-6 flex-wrap">
+          <div>
+            <p className="eyebrow text-ink2 mb-4">Hosting</p>
+            <h1 className="font-display text-display text-ink">Your listings.</h1>
+          </div>
+          <Button asChild>
+            <Link to="/listings/create" className="gap-2">
+              <Plus className="h-4 w-4" /> New listing
+            </Link>
+          </Button>
         </div>
-      )}
+      </section>
+
+      <section className="container-page pb-22">
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-12">
+            {[0, 1, 2].map((i) => <ListingCardSkeleton key={i} />)}
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="bg-bone rounded-sm p-12 max-w-lg">
+            <p className="eyebrow text-ink2 mb-3">No listings yet</p>
+            <p className="font-display text-2xl text-ink leading-snug">
+              Open your first home.
+            </p>
+            <p className="text-ink2 text-sm mt-3 leading-relaxed">
+              Walk us through the basics, upload a few photographs, set a nightly rate.
+              We'll handle the rest.
+            </p>
+            <Button asChild className="mt-7">
+              <Link to="/listings/create">List your home</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-14">
+            {listings.map((listing) => (
+              <ScrollReveal key={listing._id}>
+                <article className="group">
+                  <Link
+                    to={`/listings/${listing._id}`}
+                    className="block aspect-[4/5] relative overflow-hidden rounded-sm bg-bone"
+                  >
+                    {listing.images?.[0] && (
+                      <img
+                        src={listing.images[0]}
+                        alt={listing.title}
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                      />
+                    )}
+                    <span className="absolute top-3 left-3 eyebrow bg-cream/90 text-ink rounded-full px-3 py-1 backdrop-blur">
+                      Active
+                    </span>
+                  </Link>
+
+                  <div className="mt-5 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="font-display text-lg text-ink leading-snug truncate">
+                        {listing.title}
+                      </h3>
+                      <p className="text-sm text-ink3 mt-1 truncate">{listing.location}</p>
+                      <p className="font-display text-base text-ink mt-3">
+                        ${listing.price}
+                        <span className="text-ink3 text-sm font-sans"> / night</span>
+                      </p>
+                    </div>
+
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="h-9 w-9 rounded-full border border-ink/15 hover:border-ink flex items-center justify-center transition-colors"
+                          aria-label="Listing actions"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-cream border-linen w-48">
+                        <DropdownMenuItem asChild>
+                          <Link to={`/listings/${listing._id}`} className="cursor-pointer">
+                            <Eye className="h-4 w-4 mr-2" /> View
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setEditingListing(listing)}
+                          className="cursor-pointer"
+                        >
+                          <Pencil className="h-4 w-4 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-linen" />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setListingToDelete(listing);
+                            setDeleteDialogOpen(true);
+                          }}
+                          className="cursor-pointer text-danger"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </article>
+              </ScrollReveal>
+            ))}
+          </div>
+        )}
+      </section>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-cream border-linen">
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete your
-              listing.
+            <AlertDialogTitle className="font-display text-2xl text-ink">
+              Remove this listing?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-ink2 leading-relaxed">
+              This action can't be undone. Future bookings will be cancelled and the
+              listing will be removed from the collection immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-transparent border-linen hover:bg-linen rounded-full">
+              Keep it
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => listingToDelete && handleDelete(listingToDelete._id)}
               disabled={isDeleting}
+              className="bg-danger text-cream hover:bg-danger/90 rounded-full"
             >
               {isDeleting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
+                  Removing…
                 </>
               ) : (
-                "Delete"
+                "Yes, remove"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -149,15 +206,15 @@ export default function MyListings() {
 
       {editingListing && (
         <EditListingModal
-          listing={editingListing}
+          listing={editingListing as any}
           isOpen={!!editingListing}
           onClose={() => setEditingListing(null)}
           onSuccess={() => {
             refetch();
             setEditingListing(null);
           }}
-      />
+        />
       )}
     </div>
   );
-} 
+}

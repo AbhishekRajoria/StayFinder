@@ -1,25 +1,28 @@
-import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export const Unauthorized = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="flex flex-col items-center space-y-4 text-center">
-        <ShieldAlert className="h-16 w-16 text-destructive" />
-        <h1 className="text-4xl font-bold tracking-tight">Access Denied</h1>
-        <p className="text-muted-foreground">
-          You don't have permission to access this page. Please contact an administrator if you believe this is a mistake.
+    <div className="bg-cream min-h-[80vh] flex items-center">
+      <div className="container-page text-center py-22 max-w-xl mx-auto">
+        <p className="eyebrow text-ink2 mb-4">Restricted</p>
+        <h1 className="font-display text-display text-ink leading-tight">
+          That door isn't open to you yet.
+        </h1>
+        <p className="text-ink2 text-sm mt-5 leading-relaxed">
+          You need a different role — or to sign in — to view this page.
         </p>
-        <div className="flex space-x-4">
+        <div className="flex justify-center gap-4 mt-10">
           <Button variant="outline" onClick={() => navigate(-1)}>
-            Go Back
+            Go back
           </Button>
-          <Button onClick={() => navigate("/")}>Return Home</Button>
+          <Button onClick={() => navigate("/")}>Return home</Button>
         </div>
       </div>
     </div>
   );
-}; 
+};
+
+export default Unauthorized;

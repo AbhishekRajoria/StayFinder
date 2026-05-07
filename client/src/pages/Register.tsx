@@ -1,10 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, X } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AuthSplit } from "@/components/auth/AuthSplit";
+
+const HERO_IMAGE =
+  "https://images.unsplash.com/photo-1542317854-0c8d54895d4e?auto=format&fit=crop&w=1600&q=80";
 
 interface FormErrors {
   name?: string;
@@ -13,182 +17,148 @@ interface FormErrors {
 }
 
 export default function Register() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
-  const [showWakeUpBanner, setShowWakeUpBanner] = useState(true);
   const { register, loading, error: authError, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if user is already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/', { replace: true });
-    }
+    if (isAuthenticated) navigate("/", { replace: true });
   }, [isAuthenticated, navigate]);
 
-  const validateForm = (): boolean => {
-    const newErrors: FormErrors = {};
+  const validate = (): boolean => {
+    const next: FormErrors = {};
+    if (!name.trim()) next.name = "Tell us your name.";
+    else if (name.length < 2) next.name = "Two characters minimum.";
 
-    // Name validation
-    if (!name.trim()) {
-      newErrors.name = 'Name is required';
-    } else if (name.length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    }
+    if (!email.trim()) next.email = "Email is required.";
+    else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email))
+      next.email = "That doesn't look quite right.";
 
-    // Email validation
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) {
-      newErrors.email = 'Invalid email address';
-    }
+    if (!password) next.password = "Pick a password.";
+    else if (password.length < 8) next.password = "Eight characters minimum.";
+    else if (!/(?=.*[a-z])/.test(password)) next.password = "Add a lowercase letter.";
+    else if (!/(?=.*[A-Z])/.test(password)) next.password = "Add an uppercase letter.";
+    else if (!/(?=.*\d)/.test(password)) next.password = "Add a number.";
+    else if (!/(?=.*[!@#$%^&*])/.test(password)) next.password = "Add a special character.";
 
-    // Password validation
-    if (!password) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    } else if (!/(?=.*[a-z])/.test(password)) {
-      newErrors.password = 'Password must contain at least one lowercase letter';
-    } else if (!/(?=.*[A-Z])/.test(password)) {
-      newErrors.password = 'Password must contain at least one uppercase letter';
-    } else if (!/(?=.*\d)/.test(password)) {
-      newErrors.password = 'Password must contain at least one number';
-    } else if (!/(?=.*[!@#$%^&*])/.test(password)) {
-      newErrors.password = 'Password must contain at least one special character (!@#$%^&*)';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(next);
+    return Object.keys(next).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      await register(name, email, password);
-    }
+    if (validate()) await register(name, email, password);
   };
 
-  // Don't render the register form if user is authenticated
-  if (isAuthenticated) {
-    return null;
-  }
+  if (isAuthenticated) return null;
+
+  const clearError = (key: keyof FormErrors) =>
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: undefined } : prev));
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 relative">
-      {/* Backend Wake-up Notification Banner */}
-      {showWakeUpBanner && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-lg mx-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 relative">
-            <button
-              onClick={() => setShowWakeUpBanner(false)}
-              className="absolute top-2 right-2 text-blue-500 hover:text-blue-700"
-              aria-label="Close notification"
-            >
-              <X size={18} />
-            </button>
-            <div className="flex items-start space-x-3">
-              <Clock className="text-blue-500 mt-0.5" size={20} />
-              <div>
-                <h3 className="font-semibold text-blue-800 mb-1">
-                  Backend Initializing
-                </h3>
-                <p className="text-blue-700 text-sm">
-                  If registration is slow, the backend server may be waking up from sleep. Please wait 10-15 seconds and try again.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+    <AuthSplit
+      image={HERO_IMAGE}
+      imageCaption="A villa above the cliffs, Amalfi."
+    >
+      <p className="eyebrow text-ink2 mb-5">Become a member</p>
+      <h1 className="font-display text-display-lg text-ink leading-tight">
+        Begin somewhere
+        <br />
+        unforgettable.
+      </h1>
+      <p className="text-ink2 mt-4 leading-relaxed">
+        Free to join. Curated stays only.
+      </p>
 
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Register</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium">
-                Name
-              </label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (errors.name) {
-                    setErrors((prev) => ({ ...prev, name: undefined }));
-                  }
-                }}
-                required
-                className={errors.name ? 'border-red-500' : ''}
-              />
-              {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (errors.email) {
-                    setErrors((prev) => ({ ...prev, email: undefined }));
-                  }
-                }}
-                required
-                className={errors.email ? 'border-red-500' : ''}
-              />
-              {errors.email && <p className="text-sm text-red-500">{errors.email}</p>}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errors.password) {
-                    setErrors((prev) => ({ ...prev, password: undefined }));
-                  }
-                }}
-                required
-                className={errors.password ? 'border-red-500' : ''}
-              />
-              {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
-              <p className="text-xs text-gray-500">
-                Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character.
-              </p>
-            </div>
-            {authError && <p className="text-sm text-red-500">{authError}</p>}
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Registering...' : 'Register'}
-            </Button>
-            <p className="text-sm text-center">
-              Already have an account?{' '}
-              <Link to="/login" className="text-primary hover:underline">
-                Login
-              </Link>
+      <form onSubmit={handleSubmit} className="mt-12 space-y-7">
+        <div>
+          <label htmlFor="name" className="eyebrow text-ink mb-2 block">Full name</label>
+          <Input
+            id="name"
+            variant="underline"
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              clearError("name");
+            }}
+            placeholder="Imogen R."
+            required
+          />
+          {errors.name && <p className="text-xs text-danger mt-2">{errors.name}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="email" className="eyebrow text-ink mb-2 block">Email</label>
+          <Input
+            id="email"
+            variant="underline"
+            type="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              clearError("email");
+            }}
+            placeholder="you@somewhere.com"
+            required
+          />
+          {errors.email && <p className="text-xs text-danger mt-2">{errors.email}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="password" className="eyebrow text-ink mb-2 block">Password</label>
+          <Input
+            id="password"
+            variant="underline"
+            type="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              clearError("password");
+            }}
+            placeholder="••••••••"
+            required
+          />
+          {errors.password ? (
+            <p className="text-xs text-danger mt-2">{errors.password}</p>
+          ) : (
+            <p className="text-xs text-ink3 mt-2">
+              8+ characters with upper, lower, number, and special.
             </p>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+          )}
+        </div>
+
+        {authError && <p className="text-sm text-danger">{authError}</p>}
+
+        <Button type="submit" size="lg" className="w-full" disabled={loading}>
+          {loading ? "Creating your account…" : "Create account"}
+        </Button>
+
+        <div className="relative py-4">
+          <div className="absolute inset-x-0 top-1/2 h-px bg-linen" />
+          <span className="relative bg-cream px-4 eyebrow text-ink3 mx-auto block w-fit">or</span>
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full"
+          onClick={() => toast.info("Google sign-up arriving in the next release.")}
+        >
+          Continue with Google
+        </Button>
+      </form>
+
+      <p className="mt-10 text-sm text-ink2">
+        Already have an account?{" "}
+        <Link to="/login" className="editorial-link text-sm">
+          Sign in
+        </Link>
+      </p>
+    </AuthSplit>
   );
-} 
+}
