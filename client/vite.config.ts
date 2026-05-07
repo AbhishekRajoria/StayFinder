@@ -17,11 +17,12 @@ export default defineConfig({
       overlay: true,
     },
     proxy: {
+      // In dev, proxy /api/* → local Express server (run `npm run dev:server` from repo root).
+      // In production on Vercel, /api/* hits the serverless function on the same origin — no proxy needed.
       '/api': {
-        target: 'https://stayfinder-1-ysvj.onrender.com',
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
-        ws: true,
       }
     }
   },

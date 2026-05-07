@@ -1,12 +1,16 @@
 {
-  "name": "stayfinder-server",
-  "version": "1.0.0",
-  "description": "Backend for StayFinder app",
-  "main": "dist/index.js",
+  "name": "stayfinder",
+  "version": "2.0.0",
+  "description": "StayFinder — full-stack rental marketplace. Frontend (Vite) + serverless API (Express on Vercel Functions).",
+  "private": true,
   "scripts": {
-    "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc"
+    "dev:server": "nodemon --exec ts-node src/index.ts",
+    "dev:client": "cd client && npm run dev",
+    "build": "tsc && cd client && npm install && npm run build",
+    "build:server": "tsc",
+    "build:client": "cd client && npm install && npm run build",
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",

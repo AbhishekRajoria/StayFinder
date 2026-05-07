@@ -35,7 +35,7 @@ The visual identity is the point. Most clones reach for shadcn defaults and call
 | Auth        | JWT (cookies) + bcryptjs                    | Stateless, simple |
 | Uploads     | Multer + Cloudinary                         | CDN-backed image pipeline |
 | Payments    | Stripe Checkout + webhooks                  | PCI-out-of-scope, low integration cost |
-| Hosting     | Vercel (FE) · Railway/Fly (BE)              | Static FE on edge; always-on BE for booking flow |
+| Hosting     | Vercel — single project                     | Frontend at `/`, serverless functions at `/api/*` (same origin) |
 
 ## Architecture
 
@@ -44,12 +44,10 @@ flowchart LR
     subgraph Browser
         U[User]
     end
-    subgraph Vercel[Vercel · Frontend]
-        FE[React + Vite SPA]
-    end
-    subgraph Railway[Railway · Backend]
-        API[Express API]
-        WH[Stripe Webhook]
+    subgraph Vercel[Vercel · single project]
+        FE[Vite SPA · /]
+        API[Express on Vercel Functions · /api/*]
+        WH[Stripe Webhook · /api/webhook]
     end
     subgraph Mongo[MongoDB Atlas]
         DB[(users · listings · bookings)]
@@ -60,7 +58,7 @@ flowchart LR
     end
 
     U -->|HTTPS| FE
-    FE -->|REST + cookies| API
+    FE -->|same-origin /api/*| API
     API -->|Mongoose| DB
     API -->|images| CL
     API -->|Checkout session| STR
@@ -70,9 +68,21 @@ flowchart LR
 
 ## Project structure
 
+Single Vercel project — frontend at `/`, serverless API at `/api/*`.
+
 ```
 StayFinder/
-├── client/                       # React frontend
+├── api/                          # Vercel serverless entry
+│   └── index.ts                  # @vercel/node — re-exports the Express app
+├── src/                          # Express + Mongoose API source
+│   ├── app.ts                    # express() instance
+│   ├── index.ts                  # Local dev: connectDB() then app.listen
+│   ├── routes/                   # auth · listings · bookings · payments · webhooks
+│   ├── controllers/              # Business logic per resource
+│   ├── models/                   # User · Listing · Booking
+│   ├── middleware/               # auth · upload · errorHandler
+│   └── config/                   # env validation, cached Mongoose connect
+├── client/                       # React frontend (Vite)
 │   └── src/
 │       ├── api/                  # Per-resource axios modules
 │       ├── components/
@@ -84,12 +94,9 @@ StayFinder/
 │       ├── hooks/                # useAuth, useDebouncedValue
 │       ├── pages/                # Route-level views
 │       └── styles/               # Font imports
-├── server/                       # Express + Mongoose API
-│   └── src/
-│       ├── routes/               # auth · listings · bookings · payments · webhooks
-│       ├── controllers/          # Business logic per resource
-│       ├── models/               # User · Listing · Booking
-│       └── middleware/           # auth · upload · errorHandler
+├── package.json                  # Root: backend + Vercel scripts
+├── tsconfig.json                 # Root: backend tsconfig (client has its own)
+├── vercel.json                   # Vite framework + functions + rewrites
 └── docs/superpowers/
     ├── specs/                    # Design specs
     └── plans/                    # Implementation plans
@@ -111,17 +118,16 @@ guest@stayfinder.dev      ·  demo123   (guest — has 2 confirmed bookings)
 git clone https://github.com/Abhishek1334/StayFinder.git
 cd StayFinder
 
-# 2. Frontend
-cd client
-npm install
-echo "VITE_API_URL=http://localhost:5000/api" > .env.local
-npm run dev   # → http://localhost:5173
+# 2. Install both
+npm install                        # backend deps at root
+cd client && npm install && cd ..  # frontend deps in client/
 
-# 3. Backend (in another terminal)
-cd ../server
-npm install
-cp .env.example .env   # fill in MONGODB_URI, JWT_SECRET, CLOUDINARY_*, STRIPE_*
-npm run dev   # → http://localhost:5000
+# 3. Backend env
+cp .env.example .env               # fill MONGODB_URI, JWT_*, CLOUDINARY_*, STRIPE_*
+
+# 4. Run both — two terminals
+npm run dev:server                 # → http://localhost:5000  (Express)
+cd client && npm run dev           # → http://localhost:5173  (Vite — proxies /api → :5000)
 ```
 
 ## Featured pages
