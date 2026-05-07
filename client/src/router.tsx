@@ -4,7 +4,7 @@ import RootLayout from "@/components/layouts/RootLayout";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import SearchListings from "@/pages/SearchListings";
+import Listings from "@/pages/Listings";
 import { ListingDetails } from "@/pages/ListingDetails";
 import Dashboard from "@/pages/Dashboard";
 import Profile from "@/pages/Profile";
@@ -39,7 +39,7 @@ const router = createBrowserRouter([
       },
       {
         path: "listings",
-        element: <SearchListings />,
+        element: <Listings />,
       },
       {
         path: "listings/:id",
