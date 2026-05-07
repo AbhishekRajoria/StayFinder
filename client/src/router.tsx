@@ -4,7 +4,6 @@ import RootLayout from "@/components/layouts/RootLayout";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import TestRedux from "@/pages/TestRedux";
 import SearchListings from "@/pages/SearchListings";
 import { ListingDetails } from "@/pages/ListingDetails";
 import Dashboard from "@/pages/Dashboard";
@@ -105,10 +104,6 @@ const router = createBrowserRouter([
       {
         path: "unauthorized",
         element: <Unauthorized />,
-      },
-      {
-        path: "test-redux",
-        element: <TestRedux />,
       },
     ],
   },

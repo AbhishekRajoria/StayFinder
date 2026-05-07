@@ -36,7 +36,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['guest', 'host', 'admin'],
-      default: 'host',
+      default: 'guest',
     },
     phone: {
       type: String,

@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
+import helmet from "helmet";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
 import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./routes/authRoutes";
@@ -12,19 +15,40 @@ import webhookRoutes from "./routes/webhookRoutes";
 import dotenv from "dotenv";
 import { env } from "./config/env";
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 // Webhook route must be registered BEFORE body parsing middleware
 app.use("/api/webhook", webhookRoutes);
 
-// Middleware
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
+app.use(compression());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(morgan("dev"));
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many auth attempts, try again later." },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use("/api/auth", authLimiter);
+app.use("/api", apiLimiter);
 
 // CORS configuration
 app.use(cors({

@@ -1,4 +1,6 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,14 +12,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Home, PlusCircle, Building2, Calendar, Search, Github, GlobeIcon } from "lucide-react";
+import {
+  LogOut,
+  User,
+  Home,
+  PlusCircle,
+  Building2,
+  Calendar,
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEffect, useRef } from "react";
 
 const Navbar = () => {
   const { user, loading, logout, checkAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const hasCheckedAuth = useRef(false);
+
+  const { scrollY } = useScroll();
+  // Background opacity ramps from 0 → 0.95 between 0 and 80px scroll
+  const bgOpacity = useTransform(scrollY, [0, 80], [0, 0.95]);
+  const borderOpacity = useTransform(scrollY, [0, 80], [0, 1]);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     if (!hasCheckedAuth.current) {
@@ -26,72 +41,113 @@ const Navbar = () => {
     }
   }, [checkAuth]);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Routes where the navbar should overlay a dark hero (text becomes cream)
+  const isOverHero = location.pathname === "/" && !scrolled;
+
   const handleLogout = async () => {
     try {
       await logout();
       navigate("/login");
-    } catch (error) {
-      // Silent error handling
+    } catch {
+      /* silent */
     }
   };
 
+  const linkBase = isOverHero
+    ? "text-cream/85 hover:text-cream"
+    : "text-ink2 hover:text-ink";
+
   return (
-    <nav className="border-b">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-4">
-          <Link to="/" className="text-xl font-bold">
-            StayFinder
-          </Link>
-          <Link to="https://github.com/Abhishek1334/StayFinder/" className="text-sm font-bold">
-            <Github className="h-4 w-4" />
-          </Link>
-          <Link to="https://abhishek-rajoria.vercel.app/" className="text-sm font-bold">
-            <GlobeIcon className="h-4 w-4" />
+    <motion.nav className="fixed top-0 inset-x-0 z-50">
+      {/* animated background that fades in on scroll */}
+      <motion.div
+        aria-hidden
+        style={{ opacity: bgOpacity }}
+        className="absolute inset-0 bg-cream backdrop-blur-md"
+      />
+      <motion.div
+        aria-hidden
+        style={{ opacity: borderOpacity }}
+        className="absolute inset-x-0 bottom-0 h-px bg-linen"
+      />
+
+      <div className="relative container-page">
+        <div className="flex h-16 md:h-20 items-center justify-between">
+          {/* Brand */}
+          <Link to="/" className="flex items-center gap-3">
+            <span
+              className={`font-display italic text-2xl md:text-[26px] leading-none transition-colors ${
+                isOverHero ? "text-cream" : "text-ink"
+              }`}
+            >
+              StayFinder
+            </span>
           </Link>
 
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-10">
+            <Link to="/listings" className={`eyebrow transition-colors ${linkBase}`}>
+              Stays
+            </Link>
+            <Link
+              to="/listings/create"
+              className={`eyebrow transition-colors ${linkBase}`}
+            >
+              List your home
+            </Link>
+            {!user && (
+              <Link to="/login" className={`eyebrow transition-colors ${linkBase}`}>
+                Sign in
+              </Link>
+            )}
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Right cluster */}
+          <div className="flex items-center gap-3">
             {loading ? (
-              <div className="flex items-center gap-4">
-                <Skeleton className="h-9 w-20" />
-                <Skeleton className="h-9 w-20" />
-              </div>
+              <Skeleton className="h-9 w-24 rounded-full" />
             ) : user ? (
               <>
-                <Link to="/listings/create">
+                <Link to="/listings/create" className="hidden md:inline-flex">
                   <Button variant="outline" size="sm" className="gap-2">
-                    <PlusCircle className="h-4 w-4" />
-                    List Your Space
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    New
                   </Button>
                 </Link>
-                                
-                <Link to="/listings">
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Search className="h-4 w-4" />
-                    Search Listings
-                  </Button>
-                </Link>
-                                          
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                      <Avatar className="h-8 w-8">
+                    <Button
+                      variant="ghost"
+                      className="relative h-10 w-10 rounded-full p-0 border border-ink/15 hover:border-ink"
+                    >
+                      <Avatar className="h-9 w-9">
                         <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
+                        <AvatarFallback className="bg-bone text-ink text-sm">
+                          {user.name?.[0] || "U"}
+                        </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuContent
+                    className="w-60 bg-cream border-linen"
+                    align="end"
+                    forceMount
+                  >
                     <DropdownMenuLabel className="font-normal">
-                      <div className="flex flex-col space-y-1">
-                        <p className="text-sm font-medium leading-none">{user.name}</p>
-                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                      <div className="flex flex-col gap-1">
+                        <p className="text-sm font-medium text-ink">{user.name}</p>
+                        <p className="text-xs text-ink3">{user.email}</p>
                       </div>
                     </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
+                    <DropdownMenuSeparator className="bg-linen" />
                     <DropdownMenuItem asChild>
                       <Link to="/dashboard" className="cursor-pointer">
                         <Home className="mr-2 h-4 w-4" />
@@ -118,7 +174,6 @@ const Navbar = () => {
                         <span>My Bookings</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
                     {user.role === "host" && (
                       <DropdownMenuItem asChild>
                         <Link to="/host/bookings" className="cursor-pointer">
@@ -127,8 +182,11 @@ const Navbar = () => {
                         </Link>
                       </DropdownMenuItem>
                     )}
-
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                    <DropdownMenuSeparator className="bg-linen" />
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                      className="cursor-pointer text-ink"
+                    >
                       <LogOut className="mr-2 h-4 w-4" />
                       <span>Log out</span>
                     </DropdownMenuItem>
@@ -136,20 +194,15 @@ const Navbar = () => {
                 </DropdownMenu>
               </>
             ) : (
-              <>
-                <Link to="/login">
-                  <Button variant="ghost">Log in</Button>
-                </Link>
-                <Link to="/register" className="text-primary hover:underline">
-                  Register
-                </Link>
-              </>
+              <Link to="/register">
+                <Button size="sm">Get started</Button>
+              </Link>
             )}
           </div>
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 
-export default Navbar; 
+export default Navbar;

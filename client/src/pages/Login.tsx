@@ -11,12 +11,10 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card';
-import { Clock, X } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showWakeUpBanner, setShowWakeUpBanner] = useState(true);
   const { login, loading, error, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -38,33 +36,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12 relative">
-      {/* Backend Wake-up Notification Banner */}
-      {showWakeUpBanner && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-full max-w-lg mx-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 relative">
-            <button
-              onClick={() => setShowWakeUpBanner(false)}
-              className="absolute top-2 right-2 text-blue-500 hover:text-blue-700"
-              aria-label="Close notification"
-            >
-              <X size={18} />
-            </button>
-            <div className="flex items-start space-x-3">
-              <Clock className="text-blue-500 mt-0.5" size={20} />
-              <div>
-                <h3 className="font-semibold text-blue-800 mb-1">
-                  Backend Initializing
-                </h3>
-                <p className="text-blue-700 text-sm">
-                  If login is slow, the backend server may be waking up from sleep. Please wait 10-15 seconds and try again.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    <div className="min-h-screen flex items-center justify-center bg-cream px-4 py-12 relative">
       {/* Login Form */}
       <Card className="w-full max-w-md z-10">
         <CardHeader>

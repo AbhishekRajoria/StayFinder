@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { listingsAPI } from "@/services/api";
+import { createListing as createListingApi } from "@/api/listingApi";
 import { X, Upload } from "lucide-react";
 
 const formSchema = z.object({
@@ -144,7 +144,7 @@ export function CreateListing() {
       
 
       
-      await listingsAPI.createListing(formData);
+      await createListingApi(formData);
       toast.success("Listing created successfully");
       navigate("/my-listings");
     } catch (error) {

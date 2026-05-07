@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import { getListings} from "@/api/listingApi";
 import { Listing } from "@/types/listing";
 import { useToast } from "@/components/ui/use-toast";
-import { Clock, X } from "lucide-react";
 
 export default function Home() {
   const { toast } = useToast();
   const [featuredListings, setFeaturedListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showWakeUpBanner, setShowWakeUpBanner] = useState(true);
 
   useEffect(() => {
     const fetchFeaturedListings = async () => {
@@ -39,31 +37,6 @@ export default function Home() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Backend Wake-up Notification Banner */}
-      {showWakeUpBanner && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 relative">
-          <button
-            onClick={() => setShowWakeUpBanner(false)}
-            className="absolute top-2 right-2 text-blue-500 hover:text-blue-700"
-            aria-label="Close notification"
-          >
-            <X size={18} />
-          </button>
-          <div className="flex items-start space-x-3">
-            <Clock className="text-blue-500 mt-0.5" size={20} />
-            <div>
-              <h3 className="font-semibold text-blue-800 mb-1">
-                Backend Initializing
-              </h3>
-              <p className="text-blue-700 text-sm">
-                Please note: The backend server may take 10-15 seconds to wake up from sleep state due to inactivity. 
-                If listings don't load immediately, please wait a moment and they'll appear shortly.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <section className="text-center mb-16">
         <h1 className="text-4xl font-bold mb-4">
           Find Your Perfect Stay
