@@ -117,5 +117,7 @@ export const uploadImage = async (file: File): Promise<ApiResponse<{ url: string
 
 export const getListingBookings = async (listingId: string): Promise<{ startDate: string; endDate: string; }[]> => {
   const response = await axios.get(`/listings/${listingId}/bookings`);
-  return response.data.data;
-}; 
+  // Server returns the array directly (res.json(bookings)), not wrapped in
+  // { success, data } — handle both for safety.
+  return Array.isArray(response.data) ? response.data : (response.data?.data ?? []);
+};
