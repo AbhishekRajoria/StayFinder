@@ -42,7 +42,17 @@ export function EditorialHero({
           }`}
           loading="eager"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-ink/30 via-ink/10 to-ink/60" />
+        {/* Strong bottom darken so the headline reads on any photo. The first
+           gradient handles vertical legibility; the second is a soft ellipse
+           anchored bottom-left where the headline lives. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-ink/30 via-ink/40 to-ink/90" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 60% at 25% 80%, rgba(31,27,22,0.55), transparent 70%)",
+          }}
+        />
       </div>
 
       {/* Content */}
@@ -55,13 +65,24 @@ export function EditorialHero({
             className="col-span-12 md:col-span-8"
           >
             {eyebrow && (
-              <p className="eyebrow text-cream/80 mb-6">{eyebrow}</p>
+              <p
+                className="eyebrow text-cream/85 mb-6"
+                style={{ textShadow: "0 1px 12px rgba(0,0,0,0.45)" }}
+              >
+                {eyebrow}
+              </p>
             )}
-            <h1 className="font-display text-cream text-display-xl">
+            <h1
+              className="font-display text-cream text-display-xl"
+              style={{ textShadow: "0 2px 24px rgba(0,0,0,0.45)" }}
+            >
               {title}
             </h1>
             {subtitle && (
-              <p className="mt-6 text-cream/85 text-base md:text-lg max-w-xl italic font-display">
+              <p
+                className="mt-6 text-cream/90 text-base md:text-lg max-w-xl italic font-display"
+                style={{ textShadow: "0 1px 16px rgba(0,0,0,0.45)" }}
+              >
                 {subtitle}
               </p>
             )}
