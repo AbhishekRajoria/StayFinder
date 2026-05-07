@@ -35,7 +35,7 @@ export const env = {
   // Client — env-driven so we can deploy to any backend host without code change
   CLIENT_URL: process.env.CLIENT_URL ||
     (process.env.NODE_ENV === 'production'
-      ? 'https://stayfinder-omega.vercel.app'
+      ? 'https://stayfinder-eta.vercel.app'
       : 'http://localhost:5173'),
 
   // Cookie
