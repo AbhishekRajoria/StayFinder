@@ -132,7 +132,8 @@ export const createListing = async (req: AuthRequest, res: Response, next: NextF
   try {
     const user = ensureUser(req);
 
-    if (!user.role) {
+    // Auto-promote guests to host on first listing creation
+    if (user.role === 'guest') {
       user.role = 'host';
       await user.save();
     }

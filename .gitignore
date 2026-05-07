@@ -118,3 +118,9 @@ ehthumbs.db
 Thumbs.db 
 # Playwright MCP scratch files
 .playwright-mcp/
+
+# Loose debug screenshots at repo root (root-only — public/ and Screenshots/ stay tracked)
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
