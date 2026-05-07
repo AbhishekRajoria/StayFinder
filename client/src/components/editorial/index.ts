@@ -8,3 +8,4 @@ export { DestinationCard } from "./DestinationCard";
 export { ListingCardEditorial } from "./ListingCardEditorial";
 export { ListingCardSkeleton } from "./ListingCardSkeleton";
 export { CategoryRail } from "./CategoryRail";
+export { ImageCollage } from "./ImageCollage";
