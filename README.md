@@ -2,7 +2,8 @@
 
 > A warm-editorial Airbnb-style marketplace. Built solo as a portfolio piece and a freelance landing-page demonstrator.
 
-**Live demo** → [stayfinder-eta.vercel.app](https://stayfinder-eta.vercel.app/)
+**Live demo** → [stayfinder-omega.vercel.app](https://stayfinder-omega.vercel.app/)
+**API health** → [stayfinder-omega.vercel.app/api/health](https://stayfinder-omega.vercel.app/api/health)
 **Portfolio** → [abhishek-rajoria.vercel.app](https://abhishek-rajoria.vercel.app/)
 
 ---
