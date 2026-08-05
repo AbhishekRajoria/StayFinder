@@ -69,6 +69,7 @@ export function CreateListing() {
   const [loading, setLoading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -88,8 +89,16 @@ export function CreateListing() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files?.length) return;
-    const valid = Array.from(files).filter((f) => f.type.startsWith("image/") && f.size <= 5 * 1024 * 1024);
-    if (valid.length !== files.length) toast.error("Skipped some files — images up to 5MB only.");
+    const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png"];
+    const valid = Array.from(files).filter(
+      (f) => ALLOWED_IMAGE_TYPES.includes(f.type) && f.size <= 5 * 1024 * 1024,
+    );
+    if (valid.length !== files.length) {
+      setFileError("Only JPG or PNG images up to 5MB each are allowed.");
+      event.target.value = "";
+    } else {
+      setFileError(null);
+    }
     setSelectedFiles((prev) => [...prev, ...valid]);
     valid.forEach((file) => {
       const reader = new FileReader();
@@ -332,12 +341,13 @@ export function CreateListing() {
                 <input
                   type="file"
                   className="hidden"
-                  accept="image/*"
+                  accept="image/jpeg,image/png"
                   multiple
                   onChange={handleFileSelect}
                 />
               </label>
             </div>
+            {fileError && <p className="text-xs text-danger mt-3">{fileError}</p>}
           </FormSection>
 
           <section className="container-page border-t border-linen py-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
