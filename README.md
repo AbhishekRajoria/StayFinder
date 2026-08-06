@@ -136,7 +136,7 @@ guest@stayfinder.dev      ·  demo123   (guest — has 2 confirmed bookings)
 
 ```bash
 # 1. Clone
-git clone https://github.com/Abhishek1334/StayFinder.git
+git clone https://github.com/AbhishekRajoria/StayFinder.git
 cd StayFinder
 
 # 2. Install both
